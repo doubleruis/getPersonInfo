@@ -1,27 +1,40 @@
 apply plugin: 'com.android.library'
+apply plugin: 'com.novoda.bintray-release'
+
+publish {
+    userOrg = 'doublerui'                        //bintray.com用户名
+    groupId = 'com.doubleruis'                    //jcenter上的路径
+    artifactId = 'getPersonInfo'              //项目名称
+    publishVersion = '1.0'                //版本号
+    desc = '扫描身份证，活体检测等'
+    website = 'https://github.com'
+}
 
 android {
     compileSdkVersion 28
-
-
-
     defaultConfig {
-        minSdkVersion 16
+        minSdkVersion 15
         targetSdkVersion 28
         versionCode 1
         versionName "1.0"
-
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
-
     }
-
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+//            minifyEnabled false
+//            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            minifyEnabled true
+            proguardFiles 'proguard.cfg'
         }
     }
-
+    lintOptions {
+        abortOnError false
+    }
+    sourceSets{
+        main{
+            jniLibs.srcDirs=['libs']
+        }
+    }
 }
 
 dependencies {
