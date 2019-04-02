@@ -1,11 +1,13 @@
 apply plugin: 'com.android.library'
 apply plugin: 'com.novoda.bintray-release'
+apply plugin: 'com.github.dcendents.android-maven'
+group='com.github.doubleruis'
 
 publish {
     userOrg = 'doublerui'                        //bintray.com用户名
     groupId = 'com.doubleruis'                    //jcenter上的路径
     artifactId = 'getPersonInfo'              //项目名称
-    publishVersion = '1.0'                //版本号
+    publishVersion = '1.0.1'                //版本号
     desc = '扫描身份证，活体检测等'
     website = 'https://github.com'
 }
@@ -17,34 +19,44 @@ android {
         targetSdkVersion 28
         versionCode 1
         versionName "1.0"
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        ndk {
+            abiFilters "armeabi"
+        }
     }
     buildTypes {
         release {
-//            minifyEnabled false
-//            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            minifyEnabled true
-            proguardFiles 'proguard.cfg'
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+//            minifyEnabled true
+//            proguardFiles 'proguard.cfg'
         }
     }
     lintOptions {
         abortOnError false
     }
-    sourceSets{
-        main{
-            jniLibs.srcDirs=['libs']
+    sourceSets {
+        main {
+            assets.srcDirs = ['assets']
+            jniLibs.srcDir(['libs'])
         }
+        debug.setRoot('build-types/debug')
+        release.setRoot('build-types/release')
     }
 }
 
 dependencies {
+    implementation 'com.ytman:YTAOLibrary:1.0.43'
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-
     implementation 'com.android.support:appcompat-v7:28.0.0'
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
 }
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.10'
+}
+
 task makeJar(type:Copy) {
 //删除存在的jar
     delete "build/lib/test.jar"

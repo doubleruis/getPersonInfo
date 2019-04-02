@@ -150,12 +150,11 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.menu.face_menu:
-                showResult.setText("");
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+        if (item.getItemId() == R.menu.face_menu){
+            showResult.setText("");
+            return true;
+        }else{
+            return super.onOptionsItemSelected(item);
         }
     }
 
@@ -709,7 +708,7 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
             AlertDialog alertDialog1 = new AlertDialog.Builder(this)
                     .setTitle("ERROR")//标题
                     .setMessage("静默活体 授权验证失败")//内容
-                    .setIcon(R.mipmap.icon_logo)//图标
+                    .setIcon(R.drawable.icon_logo)//图标
                     .create();
             alertDialog1.show();
         }

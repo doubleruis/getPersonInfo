@@ -14,6 +14,7 @@ buildscript {
         classpath 'com.android.tools.build:gradle:3.3.1'
         classpath fileTree(dir: 'plugin', include: ['*.jar'])
         classpath 'com.novoda:bintray-release:+'
+        classpath 'com.github.dcendents:android-maven-gradle-plugin:1.5'
     }
 }
 
