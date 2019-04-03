@@ -1,4 +1,4 @@
-package facedetectcamera.utils;
+package com.facedetectcamera.utils;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -11,9 +11,9 @@ import android.media.ExifInterface;
 import android.net.Uri;
 import android.provider.MediaStore;
 
-import java.io.IOException;
+import com.facedetectcamera.model.FaceResult;
 
-import facedetectcamera.model.FaceResult;
+import java.io.IOException;
 
 /**
  * Created by Nguyen on 5/20/2016.

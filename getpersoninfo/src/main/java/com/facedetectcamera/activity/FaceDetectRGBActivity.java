@@ -1,4 +1,4 @@
-package facedetectcamera.activity;
+package com.facedetectcamera.activity;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -21,6 +21,7 @@ import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.facedetectcamera.model.FaceResult;
 import com.getpersoninfo.R;
 import com.seeta.sdk.AgFaceMark;
 import com.seeta.sdk.FaceDetector;
@@ -38,10 +39,9 @@ import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
-import facedetectcamera.activity.ui.FaceOverlayView;
-import facedetectcamera.model.FaceResult;
-import facedetectcamera.utils.CameraErrorCallback;
-import facedetectcamera.utils.Util;
+import com.facedetectcamera.activity.ui.FaceOverlayView;
+import com.facedetectcamera.utils.CameraErrorCallback;
+import com.facedetectcamera.utils.Util;
 
 import static com.seeta.sdk.AgFaceMark.Status.REAL;
 

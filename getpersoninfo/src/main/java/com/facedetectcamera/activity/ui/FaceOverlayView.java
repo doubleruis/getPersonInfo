@@ -1,7 +1,7 @@
 // Copyright (c) Philipp Wagner. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-package facedetectcamera.activity.ui;
+package com.facedetectcamera.activity.ui;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -15,11 +15,11 @@ import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.View;
 
+import com.facedetectcamera.model.FaceResult;
+
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.text.DecimalFormat;
-
-import facedetectcamera.model.FaceResult;
 
 /**
  * Created by Nguyen on 5/20/2016.

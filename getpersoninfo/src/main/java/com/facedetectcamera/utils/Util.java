@@ -1,4 +1,4 @@
-package facedetectcamera.utils;
+package com.facedetectcamera.utils;
 
 import android.app.Activity;
 import android.graphics.Matrix;

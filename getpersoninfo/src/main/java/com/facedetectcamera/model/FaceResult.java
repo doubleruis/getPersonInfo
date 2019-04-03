@@ -1,4 +1,4 @@
-package facedetectcamera.model;
+package com.facedetectcamera.model;
 
 /**
  * Created by sunjunli on 11/20/2018.
