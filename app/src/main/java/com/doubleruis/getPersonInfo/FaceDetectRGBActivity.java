@@ -1,4 +1,4 @@
-package com.facedetectcamera.activity;
+package com.doubleruis.getPersonInfo;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -6,7 +6,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.hardware.Camera;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -14,15 +17,24 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.widget.ImageView;
+import android.widget.Button;
 import android.widget.TextView;
 
+import com.doubleruis.getPersonInfo.utils.BaseFunction;
+import com.doubleruis.getPersonInfo.utils.LocalStorage;
+import com.doubleruis.getPersonInfo.utils.NonUtil;
+import com.doubleruis.getPersonInfo.utils.ToolUtils;
+import com.facedetectcamera.activity.ui.FaceOverlayView;
 import com.facedetectcamera.model.FaceResult;
-import com.getpersoninfo.R;
+import com.facedetectcamera.utils.CameraErrorCallback;
+import com.facedetectcamera.utils.ImageUtils;
+import com.facedetectcamera.utils.Util;
 import com.seeta.sdk.AgFaceMark;
 import com.seeta.sdk.FaceDetector;
 import com.seeta.sdk.PointDetector;
@@ -30,29 +42,26 @@ import com.seeta.sdk.SeetaImageData;
 import com.seeta.sdk.SeetaPointF;
 import com.seeta.sdk.SeetaRect;
 import com.seetatech.seetaverify.constants.Constants;
-import com.ytlibrary.BaseFunction;
-import com.ytlibrary.dialog.impl.DialogLibrary;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import com.facedetectcamera.activity.ui.FaceOverlayView;
-import com.facedetectcamera.utils.CameraErrorCallback;
-import com.facedetectcamera.utils.Util;
 
 import static com.seeta.sdk.AgFaceMark.Status.REAL;
+
+//import cn.finedo.fadp.until.FocusCirceView;
 
 /**
  * Created by Nguyen on 5/20/2016.
  */
 public final class FaceDetectRGBActivity extends Activity implements SurfaceHolder.Callback, Camera.PreviewCallback {
-    private int numberOfCameras;
     public static final String TAG = FaceDetectRGBActivity.class.getSimpleName();
 
     private Camera mCamera;
+    private float oldDist = 1f;
     private int cameraId = 0;  //设置前后摄像头(0为后置，1为前置)
     private int iBack = 1;
 
@@ -65,6 +74,7 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
 
     // The surface view for the camera data
     private SurfaceView mView;
+    private Camera.Size mPreviewSize;
 
     // Draw rectangles and other fancy stuff:
     private FaceOverlayView mFaceView;
@@ -76,12 +86,9 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
     public PointDetector seetaPointDetector = null;
     public AgFaceMark processor = null;
 
-    private static final int MAX_FACE = 10;
     private boolean isThreadWorking = false;
     private Handler handler = new Handler();
     private FaceDetectThread detectThread = null;
-    private int prevSettingWidth;
-    private int prevSettingHeight;
     private String PATH_MODEL;
 
     private FaceResult face = new FaceResult();
@@ -93,10 +100,13 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
     private int BGR_DEFINE_HEIGHT = 2200;//是为了保证缓冲区足够大；实际按宽高比，等比例缩放
     private byte[] mBRGdata = new byte[BGR_DEFINE_WIDTH * BGR_DEFINE_HEIGHT * 3];
 
-    private int Id = 0;
-
     private String BUNDLE_CAMERA_ID = "camera";
-    private DialogLibrary mDialogLibrary;
+
+    private TextView zoomText;
+    //private FocusCirceView focusCirceView;
+
+    private Button iv_take_photo;
+    private boolean bCapStart = false;
 
     public static class DetectInfo {
         public static int statusIndex;
@@ -111,11 +121,11 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
     public int resultIndex = -1;
 
     private TextView showResult;
-    private ImageView faceCheckPic;
 
     @Override
     public void onCreate(Bundle icicle) {
         super.onCreate(icicle);
+
         setContentView(R.layout.activity_camera_viewer);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);//让屏幕保持不暗不关闭
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -138,7 +148,184 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
     private void findViewById() {
         mView = (SurfaceView) findViewById(R.id.surfaceview);
         showResult = (TextView) findViewById(R.id.show_result);
-        faceCheckPic = (ImageView) findViewById(R.id.face_check_pic);
+        zoomText = (TextView) findViewById(R.id.zoom);
+        //focusCirceView = new FocusCirceView(FaceDetectRGBActivity.this);
+        iv_take_photo = (Button) findViewById(R.id.iv_take_photo);
+        iv_take_photo.setText("  开始检测  ");
+        iv_take_photo.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                bCapStart = true;
+                iv_take_photo.setVisibility(View.GONE);
+            }
+        });
+    }
+
+    /**
+     * 获取两指距离
+     *
+     * @param event
+     * @return
+     */
+    private static float getFingerSpacing(MotionEvent event) {
+        float x = event.getX(0) - event.getX(1);
+        float y = event.getY(0) - event.getY(1);
+        return (float) Math.sqrt(x * x + y * y);
+    }
+
+    /**
+     * 调焦
+     *
+     * @param isZoomIn true 放大 false 缩小
+     * @param camera
+     */
+    private void handleZoom(boolean isZoomIn, Camera camera) {
+        Camera.Parameters params = camera.getParameters();
+        if (params.isZoomSupported()) {
+            int maxZoom = params.getMaxZoom();
+            int zoom = params.getZoom();
+            if (isZoomIn && zoom < maxZoom) {
+                zoom++;
+            } else if (zoom > 0) {
+                zoom--;
+            }
+            params.setZoom(zoom);
+            zoomText.setVisibility(View.VISIBLE);
+            zoomText.setText("x" + ToolUtils.getPictureZoom(camera, zoom));
+            LocalStorage.putValues(FaceDetectRGBActivity.this, "progress1", "progress1", zoom + "");
+            camera.setParameters(params);
+        } else {
+
+        }
+    }
+
+    /**
+     * 聚焦
+     *
+     * @param event
+     * @param camera_
+     */
+    private static void handleFocus(MotionEvent event, Camera camera_) {
+        if (camera_ != null) {
+            //cancel previous actions
+            camera_.cancelAutoFocus();
+            Camera.Parameters parameters = null;
+            Rect focusRect = null;
+            try {
+                parameters = camera_.getParameters();
+                Camera.Size previewSize = parameters.getPreviewSize();
+                focusRect = calculateTapArea(event.getX(), event.getY(), 1f,previewSize);
+                Rect meteringRect = calculateTapArea(event.getX(), event.getY(), 1.5f,previewSize);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            // check if parameters are set (handle RuntimeException: getParameters failed (empty parameters))
+            if (parameters != null) {
+                parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
+                    List<Camera.Area> focus = new ArrayList<Camera.Area>();
+                    focus.add(new Camera.Area(focusRect, 1000));
+                    parameters.setFocusAreas(focus);
+
+                    if (parameters.getMaxNumMeteringAreas() > 0) {
+                        List<Camera.Area> metering = new ArrayList<Camera.Area>();
+                        metering.add(new Camera.Area(focusRect, 1000));
+                        parameters.setMeteringAreas(metering);
+                    }
+                }
+
+                try {
+                    camera_.setParameters(parameters);
+                    camera_.autoFocus(new Camera.AutoFocusCallback() {
+                        @Override
+                        public void onAutoFocus(boolean success, Camera camera) {
+
+                        }
+                    });
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    private static Rect calculateTapArea(float x, float y, float coefficient, Camera.Size previewSize) {
+        float focusAreaSize = 300;
+        int areaSize = Float.valueOf(focusAreaSize * coefficient).intValue();
+        int centerX = (int) (x / previewSize.width - 1000);
+        int centerY = (int) (y / previewSize.height - 1000);
+
+        int left = clamp(centerX - areaSize / 2, -1000, 1000);
+        int top = clamp(centerY - areaSize / 2, -1000, 1000);
+
+        RectF rectF = new RectF(left, top, left + areaSize, top + areaSize);
+
+        return new Rect(Math.round(rectF.left), Math.round(rectF.top), Math.round(rectF.right), Math.round(rectF.bottom));
+    }
+
+    private static int clamp(int x, int min, int max) {
+        if (x > max) {
+            return max;
+        }
+        if (x < min) {
+            return min;
+        }
+        return x;
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (event.getPointerCount() == 1) {
+//            bCapStart = true;
+//            iv_take_photo.setVisibility(View.GONE);
+            //handleFocus(event, mCamera);
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    float x = event.getX();
+                    float y = event.getY();
+//                    if (focusCirceView != null) {
+//                        focusCirceView.myViewScaleAnimation(focusCirceView);//动画效果
+//                        focusCirceView.setPoint(x, y);
+//                        addContentView(focusCirceView, new
+//                                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+//                                ViewGroup.LayoutParams.MATCH_PARENT)); //添加视图FocusCirceView
+//                    }
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    break;
+                case MotionEvent.ACTION_UP:
+                    zoomText.setVisibility(View.GONE);
+                    //抬起时清除画布,并移除视图
+//                    if (focusCirceView != null && (ViewGroup) focusCirceView.getParent()!=null) {
+//                        ((ViewGroup) focusCirceView.getParent()).removeView(focusCirceView);
+//                    }
+//                    focusCirceView.deleteCanvas();
+                    break;
+            }
+        } else {
+            switch (event.getAction() & MotionEvent.ACTION_MASK) {
+                case MotionEvent.ACTION_POINTER_DOWN:
+                    oldDist = getFingerSpacing(event);
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    float newDist = getFingerSpacing(event);
+                    if (newDist > oldDist) {
+                        handleZoom(true, mCamera);
+                    } else if (newDist < oldDist) {
+                        handleZoom(false, mCamera);
+                    }
+                    oldDist = newDist;
+                    break;
+                case MotionEvent.ACTION_UP:
+                    //抬起时清除画布,并移除视图
+//                    focusCirceView.deleteCanvas();
+//                    if (focusCirceView != null && (ViewGroup) focusCirceView.getParent()!=null) {
+//                        ((ViewGroup) focusCirceView.getParent()).removeView(focusCirceView);
+//                    }
+                    break;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -150,17 +337,17 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.menu.face_menu){
-            showResult.setText("");
-            return true;
-        }else{
-            return super.onOptionsItemSelected(item);
+        switch (item.getItemId()) {
+            case R.menu.face_menu:
+                showResult.setText("");
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
         }
     }
 
     private void initData() {
         new BaseFunction(this);
-        mDialogLibrary = new DialogLibrary(this);
     }
 
     @Override
@@ -211,28 +398,16 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
     @Override
     public void surfaceCreated(SurfaceHolder surfaceHolder) {
         //Find the total number of cameras available
-        numberOfCameras = Camera.getNumberOfCameras();
         Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
-        for (int i = 0; i < Camera.getNumberOfCameras(); i++) {
-            Camera.getCameraInfo(i, cameraInfo);
-            if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
-//                cameraId = i;
-            } else if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
-//                cameraId = i;
-            }
-
-        }
-
         mCamera = Camera.open(cameraId);
-
         Camera.getCameraInfo(cameraId, cameraInfo);
         if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
             mFaceView.setFront(true);
         }
-
         try {
             mCamera.setPreviewDisplay(mView.getHolder());
         } catch (Exception e) {
+            e.printStackTrace();
 //            Log.e(TAG, "Could not preview the image.", e);
         }
     }
@@ -261,10 +436,6 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
         } else {
             iBack = 0;
         }
-
-        // Create media.FaceDetector
-        float aspect = (float) previewHeight / (float) previewWidth;
-
         // Everything is configured! Finally start the camera preview again:
         startPreview();
     }
@@ -286,49 +457,34 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
     }
 
     private void configureCamera(int width, int height) {
-        Camera.Parameters parameters = mCamera.getParameters();
-        parameters.setPreviewFormat(ImageFormat.NV21);
-        // Set the PreviewSize and AutoFocus:
-        setOptimalPreviewSize(parameters, width, height);
-        setAutoFocus(parameters);
-        // And set the parameters:
-        mCamera.setParameters(parameters);
-    }
-
-    private void setOptimalPreviewSize(Camera.Parameters cameraParameters, int width, int height) {
-        List<Camera.Size> previewSizes = cameraParameters.getSupportedPreviewSizes();
-        float targetRatio = (float) width / height;
-        Camera.Size previewSize = Util.getOptimalPreviewSize(this, previewSizes, targetRatio);
-        previewWidth = previewSize.width;
-        previewHeight = previewSize.height;
-
-//        Log.e(TAG, "previewWidth" + previewWidth);
-//        Log.e(TAG, "previewHeight" + previewHeight);
-
-        /**
-         * Calculate size to scale full frame bitmap to smaller bitmap
-         * Detect face in scaled bitmap have high performance than full bitmap.
-         * The smaller image size -> detect faster, but distance to detect face shorter,
-         * so calculate the size follow your purpose
-         */
-        if (previewWidth > 640) {
-            prevSettingWidth = 640;
-            prevSettingHeight = 480;
-        } else if (previewWidth > 720) {
-            prevSettingWidth = 720;
-            prevSettingHeight = 540;
-        } else if (previewWidth / 4 > 240) {
-            prevSettingWidth = 240;
-            prevSettingHeight = 160;
-        } else {
-            prevSettingWidth = 160;
-            prevSettingHeight = 120;
+        try {
+            Camera.Parameters parameters = mCamera.getParameters();
+            List<Camera.Size> preSupportedSizes = parameters.getSupportedPreviewSizes();
+            parameters.setPreviewFormat(ImageFormat.NV21);
+            // Set the PreviewSize and AutoFocus:
+            //setOptimalPreviewSize(parameters, width, height);
+            // And set the parameters:
+            if (mPreviewSize == null) {
+                mPreviewSize = ImageUtils.getOptimalPreviewSize(preSupportedSizes, mView.getWidth(), mView.getHeight());
+            }
+            if (mPreviewSize != null) {
+                parameters.setPreviewSize(mPreviewSize.width, mPreviewSize.height);
+                previewWidth = mPreviewSize.width;
+                previewHeight = mPreviewSize.height;
+                mFaceView.setPreviewWidth(previewWidth);
+                mFaceView.setPreviewHeight(previewHeight);
+            }
+            setAutoFocus(parameters);
+            String progress1 = LocalStorage.getValues(FaceDetectRGBActivity.this,
+                    "progress1", "progress1");
+            if (NonUtil.isNotNon(progress1)) {
+                parameters.setZoom(Integer.parseInt(progress1));
+                zoomText.setText("x" + ToolUtils.getPictureZoom(mCamera, Integer.parseInt(progress1)));
+            }
+            mCamera.setParameters(parameters);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-
-        cameraParameters.setPreviewSize(previewSize.width, previewSize.height);
-
-        mFaceView.setPreviewWidth(previewWidth);
-        mFaceView.setPreviewHeight(previewHeight);
     }
 
     private void setAutoFocus(Camera.Parameters cameraParameters) {
@@ -346,7 +502,6 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
         }
     }
 
-
     @Override
     public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
         mCamera.setPreviewCallbackWithBuffer(null);
@@ -354,7 +509,6 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
         mCamera.release();
         mCamera = null;
     }
-
 
     @Override
     public void onPreviewFrame(byte[] _data, Camera _camera) {
@@ -370,12 +524,10 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
         }
     }
 
-
     String GetStateString(int resultIndex) {
         String resultString = "人像模糊";  //"face too blur"
         if (resultIndex != -1) {//存在人脸
             AgFaceMark.Status status = AgFaceMark.Status.values()[resultIndex];
-
             switch (status) {
                 case REAL:
                     resultString = "清晰的人像";   // "real face"
@@ -395,13 +547,11 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
         return resultString;
     }
 
-
     /*
 
      * byte[] data保存的是纯BGR的数据，而非完整的图片文件数据
 
      */
-
     static public Bitmap createMyBitmap(byte[] data, int width, int height) {
         int[] colors = convertByteToColor(data);
         if (colors == null) {
@@ -486,25 +636,7 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
         bundle.putString("pic_path", picPath);
         intent.putExtras(bundle);
         setResult(RESULT_OK, intent);
-//        finish();
     }
-
-    public void compressBmpToFile(Bitmap bmp, File file) {
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        int options = 100;//个人喜欢从80开始,
-        bmp.compress(Bitmap.CompressFormat.JPEG, options, baos);
-//        //log.e("初始图片内存大小：", baos.toByteArray().length / 1024 + "");
-        try {
-            FileOutputStream fos = new FileOutputStream(file);
-            fos.write(baos.toByteArray());
-            fos.flush();
-            fos.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
 
     int VIPLFindMaxFace(SeetaRect[] face_infos)//返回最大人脸的索引值
     {
@@ -520,7 +652,6 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
                 targetIndex = index;
             }
         }
-
         return targetIndex;
     }
 
@@ -528,7 +659,6 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
         if (detectThread == null) {
             return;
         }
-
         if (detectThread.isAlive()) {
             try {
                 detectThread.join();
@@ -537,7 +667,6 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
                 e.printStackTrace();
             }
         }
-
     }
 
     // fps detect face (not FPS of camera)
@@ -559,16 +688,13 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
             this.handler = handler;
         }
 
-
         public void setData(byte[] data) {
             this.data = data;
         }
 
         public void run() {
             try {
-
 //                Log.e("myerror",previewWidth+"w:h"+previewHeight);
-
                 int rlDefineH = previewHeight * BGR_DEFINE_WIDTH / previewWidth;
                 long startTime = System.currentTimeMillis();    //获取开始时间
                 //we keep the image is  h>w
@@ -581,7 +707,7 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
                 } else {
                     AgFaceMark.Nv12toBGR(data, previewWidth, previewHeight, mBRGdata, BGR_DEFINE_WIDTH, rlDefineH);
                 }
-                long endTime = System.currentTimeMillis();    //获取结束时间
+                //long endTime = System.currentTimeMillis();    //获取结束时间
 //                Log.e("myerror",(endTime-startTime)+" cost @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 
                 int newH = rlDefineH;
@@ -601,10 +727,10 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
 
                 detectInfo.statusIndex = -1;
 
-                if (maxFaceID != -1) {//存在人脸
+                if (maxFaceID != -1 && bCapStart) {//存在人脸
                     SeetaPointF[] points5 = new SeetaPointF[5];
 
-                    seetaPointDetector.Detect(imageData, faceInfos[maxFaceID], points5);
+                    boolean isCenter = seetaPointDetector.Detect(imageData, faceInfos[maxFaceID], points5);//五点检测
 
                     detectInfo.leftX = faceInfos[maxFaceID].x;
                     detectInfo.leftY = faceInfos[maxFaceID].y;
@@ -620,24 +746,28 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
                     mFaceRect[2] = (detectInfo.faceInfo.x + detectInfo.faceInfo.width) * 1.0f / newW;
                     mFaceRect[3] = (detectInfo.faceInfo.y + detectInfo.faceInfo.height) * 1.0f / newH;
 
-                    endTime = System.currentTimeMillis();    //获取结束时间
+                    boolean incenter = false;
+                    float px = mFaceRect[0] + mFaceRect[2] / 2;
+                    float py = mFaceRect[1] + mFaceRect[3] / 2;
+                    if (px > 0.33 && px < 0.66 && py > 0.63 && py < 0.93) {
+                        //代表中心点在显示的中心，本图片可用
+                        incenter = true;
+                    }
+                    //endTime = System.currentTimeMillis();    //获取结束时间
 //                    Log.e("myerror 22",(endTime-startTime)+" cost @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-
                     long start = System.currentTimeMillis();
                     AgFaceMark.Status status = processor.Predict(imageData, faceInfos[maxFaceID], points5);
                     long end = System.currentTimeMillis();
                     long spent = end - start;
 //                    Log.e("myerror", " " + spent + "processor  cost @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-
                     DetectInfo.spent = spent;
-
                     detectInfo.statusIndex = status.ordinal();
                     resultIndex = status.ordinal();
                     mFaceStates[0] = resultIndex;
 //                    face.setFace(1,mFaceRect,mFaceMarks,GetStateString(resultIndex));
                     FaceDetectRGBActivity.this.runOnUiThread(mRunnable);  //更新UI,显示识别情况
-                    //如果是RealPerson change to bitmap
-                    if (AgFaceMark.Status.values()[resultIndex] == REAL) {
+                    //如果是RealPerson change to bitmap && incenter
+                    if (AgFaceMark.Status.values()[resultIndex] == REAL && isCenter ) {
                         Bitmap bitmap = createMyBitmap(mBRGdata, newW, newH);
                         saveImage(bitmap);
                         finish();
@@ -648,7 +778,6 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
                     face.setFace(0, mFaceRect, mFaceMarks, GetStateString(resultIndex));
 //                    Log.e("myerror","no face !!!!!!!!!!!!!!!!!!!!!!");
                 }
-
             } catch (Exception e) {
                 e.printStackTrace();
 //                Log.e("yutao", "返回bitmap异常:" + e);
@@ -657,7 +786,6 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
                 public void run() {
                     //send face to FaceView to draw rect
                     mFaceView.setFace(face);
-
                     //calculate FPS
                     end = System.currentTimeMillis();
                     counter++;
@@ -673,7 +801,6 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
                     isThreadWorking = false;
                 }
             });
-
         }
 
         Runnable mRunnable = new Runnable() {
@@ -681,28 +808,66 @@ public final class FaceDetectRGBActivity extends Activity implements SurfaceHold
             public void run() {
                 String showText = GetStateString(resultIndex);
                 showResult.setText(showText);
-//                if (showText == null && "".equals(showText)) {
-//                    showResult.setText(showText);  //空结果
-//                } else {
-//                    showResult.setText("请调整拍摄角度");  //显示检测结果
-//                }
             }
         };
+    }
+
+
+    public static boolean fileIsExists(String strFile){
+        try {
+            File file=new File(strFile);
+            if (!file.exists()){
+                return false;
+            }
+        }catch (Exception e){
+            return false;
+        }
+        return true;
+    }
+
+    void ShowInfo(String info)
+    {
+        AlertDialog alertDialog1 = new AlertDialog.Builder(this)
+                .setTitle("ERROR")//标题
+                .setMessage(info)//内容
+                .setIcon(R.drawable.icon_logo)//图标
+                .create();
+        alertDialog1.show();
 
     }
 
     private void SeetaInit() {
         PATH_MODEL = Environment.getExternalStorageDirectory().getAbsolutePath() + "/model/";
         String fdModel = PATH_MODEL + Constants.MODEL_DETECTOR_FILE_NAME;
+
+        if(!fileIsExists(fdModel))
+        {
+            ShowInfo("文件不存在->fdModel");
+            return;
+        }
+
         seetaFaceDetector = new FaceDetector(fdModel);
         seetaFaceDetector.SetMinFaceSize(100);
         seetaFaceDetector.SetImagePyramidScaleFactor(1.414f);
         seetaFaceDetector.SetVideoStable(true);
 
         String pdModel = PATH_MODEL + Constants.MODEL_POINTER_FILE_NAME;
+
+        if(!fileIsExists(pdModel))
+        {
+            ShowInfo("文件不存在->pdModel");
+            return;
+        }
+
         seetaPointDetector = new PointDetector(pdModel);
 
         String fasModel = PATH_MODEL + Constants.MODEL_FAS_FILE_NAME1;
+
+        if(!fileIsExists(fasModel))
+        {
+            ShowInfo("文件不存在->fasModel");
+            return;
+        }
 
         if (!AgFaceMark.AddAuthor("")) {
             AlertDialog alertDialog1 = new AlertDialog.Builder(this)
