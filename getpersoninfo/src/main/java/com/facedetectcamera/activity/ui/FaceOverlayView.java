@@ -41,7 +41,7 @@ public class FaceOverlayView extends View {
     private boolean isFront = false;
 
 
-    private Rect mMarkRect;
+    //private Rect mMarkRect;
     Bitmap bitmapMark;
 
     public FaceOverlayView(Context context) {
@@ -71,16 +71,17 @@ public class FaceOverlayView extends View {
         mTextPaint.setTextAlign(Paint.Align.CENTER);
 
 
-        try {
-
-            FileInputStream fis = new FileInputStream(android.os.Environment.getExternalStorageDirectory().getAbsolutePath()+"/model/mark.png");
-            bitmapMark= BitmapFactory.decodeStream(fis);
-            mMarkRect = new Rect(0,0,bitmapMark.getWidth(),bitmapMark.getHeight());
-        } catch (FileNotFoundException e) {
-
-            e.printStackTrace();
-
-        }
+//        try {
+            String path = android.os.Environment.getExternalStorageDirectory().getAbsolutePath()+"/model/mark.png";
+//            FileInputStream fis = new FileInputStream(android.os.Environment.getExternalStorageDirectory().getAbsolutePath()+"/model/mark.png");
+//            bitmapMark= BitmapFactory.decodeStream(fis);
+            bitmapMark= BitmapFactory.decodeFile(path);
+            //mMarkRect = new Rect(0,0,bitmapMark.getWidth(),bitmapMark.getHeight());
+//        } catch (FileNotFoundException e) {
+//
+//            e.printStackTrace();
+//
+//        }
 
 
 
