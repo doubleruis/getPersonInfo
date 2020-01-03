@@ -67,3 +67,22 @@ dependencies {
     implementation files('libs/commons-io-2.4.jar')
     implementation 'com.android.support:multidex:1.0.0'
 }
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.10'
+}
+
+task makeJar(type:Copy) {
+//删除存在的jar
+    delete "build/lib/test.jar"
+//设置拷贝文件
+    from("build/intermediates/bundles/release")
+//打进jar后文件目录
+    into("build/libs/")
+//将classes.jar放入build/libs目录下
+//include,exclude参数来设置过滤
+    include("classes.jar")
+//重命名为test.jar
+    rename("classes.jar","test.jar")
+}
+makeJar.dependsOn(build)
