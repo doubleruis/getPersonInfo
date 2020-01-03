@@ -96,15 +96,13 @@ public class FacedetectUtils {
     }
 
     /**
-     * 初始化活体检测权限文件
+     * 初始化活体检测权限（模型）文件
      */
     public void initFaceCheck() {
-        Log.d("zrr","初始化活体检测权限文件");
         System.loadLibrary("AgileFace");
         String state= Environment.getExternalStorageState();
         if(Environment.MEDIA_MOUNTED.equals(state))
         {
-            // unarp  the file to new path,we will use the model file
             String DATABASE_PATH = Environment.getExternalStorageDirectory().getAbsolutePath();
             String newPath = DATABASE_PATH+"/model";
             CopyAssets(context,"model",newPath);
