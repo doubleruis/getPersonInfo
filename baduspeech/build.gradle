@@ -10,9 +10,9 @@ android {
         versionCode 1
         versionName "1.0"
         ndk {
-            abiFilters 'armeabi','armeabi-v7a'
+            abiFilters 'armeabi'
         }
-        resConfigs "zh"
+        //resConfigs "zh" ,'armeabi-v7a'
     }
     buildTypes {
         release {
