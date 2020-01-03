@@ -1,8 +1,0 @@
-#生产地址
-#service_ip=192.168.8.104:
-#port=8080
-#project_name=monitor_webapp
-
-service_ip=wx.hefeimobile.cn
-port=
-project_name=hfydwt-fd-monitorwebapp
