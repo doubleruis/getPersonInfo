@@ -1,1 +1,1 @@
-include ':app', ':getpersoninfo'
+include ':app', ':getpersoninfo', ':baiduspeech'
